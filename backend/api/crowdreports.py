@@ -17,17 +17,20 @@ router = APIRouter(prefix="/api/crowdreports", tags=["CrowdReports"])
 class CrowdReportCreate(BaseModel):
     """Схема для створення краудрепорту"""
     user_id: int
+    address_id: int  # ✅ ДОДАНО - обов'язкове поле
     queue_id: int
-    status: str  # "on" або "off"
+    report_type: str  # "power_on" або "power_off"
 
 
 class CrowdReportResponse(BaseModel):
     """Схема відповіді краудрепорту"""
     id: int
     user_id: int
+    address_id: int  # ✅ ДОДАНО
     queue_id: int
+    report_type: str
     status: str
-    created_at: datetime
+    reported_at: datetime  # ✅ ВИПРАВЛЕНО з created_at на reported_at
 
     class Config:
         from_attributes = True
@@ -42,20 +45,22 @@ async def create_crowdreport(
     Створити новий краудрепорт про стан світла.
 
     Args:
-        report_data: Дані репорту (user_id, queue_id, status)
+        report_data: Дані репорту (user_id, address_id, queue_id, report_type)
 
     Returns:
         Створений краудрепорт
     """
-    # Валідація статусу
-    if report_data.status not in ["on", "off"]:
-        raise HTTPException(status_code=400, detail="Status must be 'on' or 'off'")
+    # Валідація report_type
+    if report_data.report_type not in ["power_on", "power_off"]:
+        raise HTTPException(status_code=400, detail="report_type must be 'power_on' or 'power_off'")
 
     # Створити новий репорт
     new_report = CrowdReport(
         user_id=report_data.user_id,
+        address_id=report_data.address_id,  # ✅ ДОДАНО
         queue_id=report_data.queue_id,
-        status=report_data.status
+        report_type=report_data.report_type,
+        status='pending'  # За замовчуванням pending
     )
 
     db.add(new_report)
@@ -88,8 +93,8 @@ async def get_crowdreport_stats(
         select(func.count(CrowdReport.id))
         .where(
             CrowdReport.queue_id == queue_id,
-            CrowdReport.status == "on",
-            CrowdReport.created_at >= since
+            CrowdReport.report_type == "power_on",
+            CrowdReport.reported_at >= since
         )
     )
     on_count = on_count_result.scalar() or 0
@@ -99,8 +104,8 @@ async def get_crowdreport_stats(
         select(func.count(CrowdReport.id))
         .where(
             CrowdReport.queue_id == queue_id,
-            CrowdReport.status == "off",
-            CrowdReport.created_at >= since
+            CrowdReport.report_type == "power_off",
+            CrowdReport.reported_at >= since
         )
     )
     off_count = off_count_result.scalar() or 0
@@ -130,7 +135,7 @@ async def get_recent_reports(
     Returns:
         Список останніх репортів
     """
-    query = select(CrowdReport).order_by(CrowdReport.created_at.desc()).limit(limit)
+    query = select(CrowdReport).order_by(CrowdReport.reported_at.desc()).limit(limit)
 
     if queue_id:
         query = query.where(CrowdReport.queue_id == queue_id)
@@ -142,9 +147,11 @@ async def get_recent_reports(
         {
             "id": r.id,
             "user_id": r.user_id,
+            "address_id": r.address_id,  # ✅ ДОДАНО
             "queue_id": r.queue_id,
+            "report_type": r.report_type,
             "status": r.status,
-            "created_at": r.created_at.isoformat()
+            "reported_at": r.reported_at.isoformat()
         }
         for r in reports
     ]
@@ -169,7 +176,7 @@ async def get_user_reports(
     result = await db.execute(
         select(CrowdReport)
         .where(CrowdReport.user_id == user_id)
-        .order_by(CrowdReport.created_at.desc())
+        .order_by(CrowdReport.reported_at.desc())
         .limit(limit)
     )
     reports = result.scalars().all()
@@ -177,9 +184,11 @@ async def get_user_reports(
     return [
         {
             "id": r.id,
+            "address_id": r.address_id,  # ✅ ДОДАНО
             "queue_id": r.queue_id,
+            "report_type": r.report_type,
             "status": r.status,
-            "created_at": r.created_at.isoformat()
+            "reported_at": r.reported_at.isoformat()
         }
         for r in reports
     ]

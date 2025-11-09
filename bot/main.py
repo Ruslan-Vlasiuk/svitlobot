@@ -1,180 +1,70 @@
 """
-Обробники для краудрепортів про стан електроенергії
+Головний файл Telegram бота СвітлоБот
 """
+import asyncio
 import logging
-from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.fsm.context import FSMContext
-from datetime import datetime
+from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.redis import RedisStorage
+from aiogram.enums import ParseMode
 
-from api_client import api_client
-from states import CrowdReportStates
-from keyboards.reply import get_main_keyboard
+from config import settings
+from handlers import start, info, user_settings, report, admin_callbacks, crowdreport
 
+# Налаштування логування
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
-router = Router()
 
 
-@router.message(F.text == "⚡ Повідомити про світло")
-async def start_crowdreport(message: Message, state: FSMContext):
-    """
-    Початок процесу краудрепорту.
-    Перевіряє чи користувач має прив'язану адресу/чергу.
-    """
+async def main():
+    """Запуск бота"""
     try:
-        user_id = message.from_user.id
+        logger.info("🤖 Starting СвітлоБот...")
 
-        # Отримати дані користувача
-        user = await api_client.get_user(user_id)
-
-        if not user:
-            await message.answer("❌ Помилка: користувача не знайдено.")
-            return
-
-        # Перевірити чи є primary_address_id
-        if not user.get('primary_address_id'):
-            await message.answer(
-                "❌ <b>Адресу не вказано</b>\n\n"
-                "Спочатку завершіть реєстрацію та вкажіть вашу адресу.\n"
-                "Використайте /start для початку.",
-                parse_mode="HTML"
-            )
-            return
-
-        # Отримати інформацію про адресу та чергу
-        address = await api_client.get(f"/api/addresses/{user['primary_address_id']}")
-
-        if not address:
-            await message.answer("❌ Помилка: адресу не знайдено в базі.")
-            return
-
-        queue_id = address['queue_id']
-
-        # Зберегти queue_id у state для наступного кроку
-        await state.update_data(queue_id=queue_id, address=address)
-
-        # Показати кнопки вибору
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="✅ Світло є",
-                    callback_data="crowdreport_on"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="❌ Світла немає",
-                    callback_data="crowdreport_off"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="🔙 Скасувати",
-                    callback_data="crowdreport_cancel"
-                )
-            ]
-        ])
-
-        await message.answer(
-            "⚡ <b>Яка ситуація зі світлом?</b>\n\n"
-            f"📍 Ваша адреса: {address['street']}, {address['house_number']}\n"
-            f"🔢 Черга: {queue_id}\n\n"
-            "Оберіть поточний стан:",
-            reply_markup=keyboard,
-            parse_mode="HTML"
+        # Створити бота
+        bot = Bot(
+            token=settings.TELEGRAM_BOT_TOKEN,
+            parse_mode=ParseMode.HTML
         )
 
-        await state.set_state(CrowdReportStates.waiting_for_status)
+        # Створити storage для FSM
+        storage = RedisStorage.from_url(settings.REDIS_URL)
 
-        logger.info(f"Crowdreport started for user {user_id}, queue {queue_id}")
+        # Створити dispatcher
+        dp = Dispatcher(storage=storage)
+
+        # Реєстрація роутерів
+        dp.include_router(start.router)
+        dp.include_router(info.router)
+        dp.include_router(user_settings.router)
+        dp.include_router(report.router)
+        dp.include_router(admin_callbacks.router)
+        dp.include_router(crowdreport.router)
+
+        logger.info("✅ Bot started successfully!")
+
+        # Отримати інфо про бота
+        bot_info = await bot.get_me()
+        logger.info(f"📱 Bot username: @{bot_info.username}")
+
+        # Видалити webhook і запустити polling
+        await bot.delete_webhook(drop_pending_updates=True)
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
     except Exception as e:
-        logger.error(f"Error starting crowdreport for {message.from_user.id}: {e}", exc_info=True)
-        await message.answer(
-            "❌ Виникла помилка. Спробуйте пізніше.",
-            reply_markup=get_main_keyboard()
-        )
+        logger.error(f"❌ Error starting bot: {e}", exc_info=True)
+        raise
+    finally:
+        await bot.session.close()
+        logger.info("🛑 Bot stopped")
 
 
-@router.callback_query(
-    CrowdReportStates.waiting_for_status,
-    F.data.in_(["crowdreport_on", "crowdreport_off"])
-)
-async def process_crowdreport(callback: CallbackQuery, state: FSMContext):
-    """
-    Обробка вибору статусу світла.
-    Зберігає репорт у БД та показує статистику.
-    """
+if __name__ == "__main__":
     try:
-        status = "on" if callback.data == "crowdreport_on" else "off"
-        data = await state.get_data()
-        queue_id = data.get('queue_id')
-        address = data.get('address', {})
-
-        # Зберегти репорт
-        report = await api_client.post(
-            "/api/crowdreports/",
-            {
-                "user_id": callback.from_user.id,
-                "queue_id": queue_id,
-                "status": status
-            }
-        )
-
-        # Отримати статистику за останні 30 хвилин
-        stats = await api_client.get(
-            f"/api/crowdreports/stats?queue_id={queue_id}&minutes=30"
-        )
-
-        status_emoji = "✅" if status == "on" else "❌"
-        status_text = "Світло є" if status == "on" else "Світла немає"
-
-        response_text = (
-            f"✅ <b>Дякуємо за повідомлення!</b>\n\n"
-            f"{status_emoji} <b>{status_text}</b>\n"
-            f"📍 {address.get('street', '')}, {address.get('house_number', '')}\n\n"
-            f"📊 <b>Статистика по черзі {queue_id}</b>\n"
-            f"(за останні 30 хвилин):\n\n"
-            f"• Повідомили про увімкнення: {stats.get('on_count', 0)}\n"
-            f"• Повідомили про відключення: {stats.get('off_count', 0)}\n\n"
-            f"⏰ Оновлено: {datetime.now().strftime('%H:%M')}"
-        )
-
-        await callback.message.edit_text(
-            response_text,
-            parse_mode="HTML"
-        )
-
-        await callback.message.answer(
-            "Повернутися до головного меню:",
-            reply_markup=get_main_keyboard()
-        )
-
-        await state.clear()
-
-        logger.info(
-            f"Crowdreport saved: user={callback.from_user.id}, "
-            f"queue={queue_id}, status={status}"
-        )
-
-        await callback.answer()
-
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("⚠️ Bot stopped by user")
     except Exception as e:
-        logger.error(f"Error processing crowdreport: {e}", exc_info=True)
-        await callback.answer("❌ Помилка збереження репорту", show_alert=True)
-        await state.clear()
-
-
-@router.callback_query(
-    CrowdReportStates.waiting_for_status,
-    F.data == "crowdreport_cancel"
-)
-async def cancel_crowdreport(callback: CallbackQuery, state: FSMContext):
-    """Скасування краудрепорту"""
-    await callback.message.edit_text("❌ Скасовано")
-    await callback.message.answer(
-        "Повернутися до головного меню:",
-        reply_markup=get_main_keyboard()
-    )
-    await state.clear()
-    await callback.answer()
+        logger.error(f"❌ Fatal error: {e}")

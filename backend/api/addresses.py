@@ -5,7 +5,6 @@ from typing import List, Optional
 from pydantic import BaseModel
 from rapidfuzz import fuzz, process
 
-
 from database import get_db
 from models.address import Address
 
@@ -56,6 +55,33 @@ class AddressResponse(BaseModel):
 # ============================================
 # ENDPOINTS
 # ============================================
+
+@router.get("/{address_id}", response_model=AddressResponse)
+async def get_address_by_id(
+        address_id: int,
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Получить адрес по ID
+
+    Используется для получения информации о primary_address_id пользователя
+
+    Пример:
+    /api/addresses/2
+    """
+    result = await db.execute(
+        select(Address).where(Address.id == address_id)
+    )
+    address = result.scalar_one_or_none()
+
+    if not address:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Address with ID {address_id} not found"
+        )
+
+    return address
+
 
 @router.get("/search", response_model=List[AddressResponse])
 async def search_addresses(
@@ -259,6 +285,7 @@ async def get_streets(
             streets.append(street_names[idx][0])
 
     return streets[:10]  # Максимум 10 результатов
+
 
 @router.get("/houses")
 async def get_houses_on_street(
