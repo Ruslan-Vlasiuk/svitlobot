@@ -22,10 +22,8 @@ async def start_crowdreport(message: Message, state: FSMContext):
     Перевіряє чи користувач має прив'язану адресу/чергу.
     """
     try:
-        user_id = message.from_user.id
-
         # Отримати дані користувача
-        user = await api_client.get_user(user_id)
+        user = await api_client.get(f"/api/users/{message.from_user.id}")
 
         if not user:
             await message.answer("❌ Помилка: користувача не знайдено.")
@@ -51,7 +49,7 @@ async def start_crowdreport(message: Message, state: FSMContext):
         queue_id = address['queue_id']
 
         # Зберегти queue_id у state для наступного кроку
-        await state.update_data(queue_id=queue_id, address=address)
+        await state.update_data(queue_id=queue_id)
 
         # Показати кнопки вибору
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -86,10 +84,8 @@ async def start_crowdreport(message: Message, state: FSMContext):
 
         await state.set_state(CrowdReportStates.waiting_for_status)
 
-        logger.info(f"Crowdreport started for user {user_id}, queue {queue_id}")
-
     except Exception as e:
-        logger.error(f"Error starting crowdreport for {message.from_user.id}: {e}", exc_info=True)
+        logger.error(f"Error starting crowdreport for {message.from_user.id}: {e}")
         await message.answer(
             "❌ Виникла помилка. Спробуйте пізніше.",
             reply_markup=get_main_keyboard()
@@ -109,7 +105,6 @@ async def process_crowdreport(callback: CallbackQuery, state: FSMContext):
         status = "on" if callback.data == "crowdreport_on" else "off"
         data = await state.get_data()
         queue_id = data.get('queue_id')
-        address = data.get('address', {})
 
         # Зберегти репорт
         report = await api_client.post(
@@ -131,8 +126,7 @@ async def process_crowdreport(callback: CallbackQuery, state: FSMContext):
 
         response_text = (
             f"✅ <b>Дякуємо за повідомлення!</b>\n\n"
-            f"{status_emoji} <b>{status_text}</b>\n"
-            f"📍 {address.get('street', '')}, {address.get('house_number', '')}\n\n"
+            f"{status_emoji} <b>{status_text}</b>\n\n"
             f"📊 <b>Статистика по черзі {queue_id}</b>\n"
             f"(за останні 30 хвилин):\n\n"
             f"• Повідомили про увімкнення: {stats.get('on_count', 0)}\n"
@@ -157,10 +151,8 @@ async def process_crowdreport(callback: CallbackQuery, state: FSMContext):
             f"queue={queue_id}, status={status}"
         )
 
-        await callback.answer()
-
     except Exception as e:
-        logger.error(f"Error processing crowdreport: {e}", exc_info=True)
+        logger.error(f"Error processing crowdreport: {e}")
         await callback.answer("❌ Помилка збереження репорту", show_alert=True)
         await state.clear()
 
@@ -177,4 +169,3 @@ async def cancel_crowdreport(callback: CallbackQuery, state: FSMContext):
         reply_markup=get_main_keyboard()
     )
     await state.clear()
-    await callback.answer()

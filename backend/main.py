@@ -71,13 +71,15 @@ async def health():
 
 
 # Підключити роутери
-from api import users, queues, addresses, notifications, iot
+from api import users, queues, addresses, notifications, iot, crowdreports
 
 app.include_router(users.router)
 app.include_router(queues.router)
 app.include_router(addresses.router)
 app.include_router(notifications.router)
 app.include_router(iot.router)
+app.include_router(crowdreports.router)
+
 
 if __name__ == "__main__":
     uvicorn.run(

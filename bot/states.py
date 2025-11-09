@@ -21,3 +21,8 @@ class ReportStates(StatesGroup):
     """Состояния при отправке краудрепорта"""
     choosing_report_type = State()  # Выбор типа (есть свет / нет света)
     confirming_address = State()  # Подтверждение адреса
+
+
+class CrowdReportStates(StatesGroup):
+    """Стейти для краудрепортів про світло"""
+    waiting_for_status = State()  # Очікування вибору статусу (є світло / немає світла)
