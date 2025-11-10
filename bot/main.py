@@ -6,6 +6,8 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.enums import ParseMode
+from handlers import dev_commands
+
 
 from config import settings
 from handlers import start, info, user_settings, report, admin_callbacks, crowdreport, location
@@ -48,6 +50,7 @@ async def main():
         dp.include_router(report.router)
         dp.include_router(admin_callbacks.router)
         dp.include_router(crowdreport.router)
+        dp.include_router(dev_commands.router)
 
         logger.info("✅ Bot started successfully!")
 

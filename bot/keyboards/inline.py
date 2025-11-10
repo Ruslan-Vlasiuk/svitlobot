@@ -17,36 +17,86 @@ def get_subscription_keyboard(channel_username: str) -> InlineKeyboardMarkup:
 
 
 def get_info_menu() -> InlineKeyboardMarkup:
-    """Меню информации"""
+    """
+    Меню інформації (12 кнопок)
+
+    Структура:
+    - 1 широка кнопка (Графік)
+    - 1 широка кнопка (Моніторинг) - З ПЕРЕНОСОМ РЯДКІВ
+    - 5 пар кнопок (10 кнопок)
+    """
     keyboard = [
+        # 1. Графік на сьогодні (широка кнопка)
         [InlineKeyboardButton(
-            text="📋 Графік на сьогодні 🔒",
-            callback_data="schedule_today"
+            text="📅 Графік на сьогодні",
+            callback_data="info_schedule"
         )],
+
+        # 2. Моніторинг мережі (широка кнопка)
         [InlineKeyboardButton(
-            text="🗺️ Карта відключень 🔒",
-            callback_data="outage_map"
+            text="⚡ Моніторинг мережі",
+            callback_data="info_monitoring"
         )],
-        [InlineKeyboardButton(
-            text="📊 Статистика точності 🔒",
-            callback_data="accuracy_stats"
-        )],
-        [InlineKeyboardButton(
-            text="💳 Тарифи та оплата",
-            callback_data="pricing"
-        )],
-        [InlineKeyboardButton(
-            text="❓ Часті питання",
-            callback_data="faq"
-        )],
-        [InlineKeyboardButton(
-            text="🆘 Підтримка",
-            callback_data="support"
-        )],
-        [InlineKeyboardButton(
-            text="⬅️ Закрити меню",
-            callback_data="close_menu"
-        )]
+
+        # 3-4. Карта міста | Точність
+        [
+            InlineKeyboardButton(
+                text="🗺️ Карта міста",
+                callback_data="info_map"
+            ),
+            InlineKeyboardButton(
+                text="📊 Точність",
+                callback_data="info_accuracy"
+            )
+        ],
+
+        # 5-6. Інші міста | Підписки
+        [
+            InlineKeyboardButton(
+                text="🤖 Інші міста",
+                callback_data="info_other_bots"
+            ),
+            InlineKeyboardButton(
+                text="💳 Підписки",
+                callback_data="info_subscriptions"
+            )
+        ],
+
+        # 7-8. Підтримка ЗСУ | Донат проєкту
+        [
+            InlineKeyboardButton(
+                text="🇺🇦 Підтримка ЗСУ",
+                callback_data="info_support_army"
+            ),
+            InlineKeyboardButton(
+                text="💙 Донат проєкту",
+                callback_data="info_support_project"
+            )
+        ],
+
+        # 9-10. Конфіденційність | Умови
+        [
+            InlineKeyboardButton(
+                text="🔒 Конфіденційність",
+                callback_data="info_privacy"
+            ),
+            InlineKeyboardButton(
+                text="📜 Умови користування",
+                callback_data="info_terms"
+            )
+        ],
+
+        # 11-12. FAQ | Підтримка
+        [
+            InlineKeyboardButton(
+                text="❓ FAQ",
+                callback_data="info_faq"
+            ),
+            InlineKeyboardButton(
+                text="💬 Підтримка",
+                callback_data="info_support"
+            )
+        ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
@@ -135,14 +185,15 @@ def get_confirm_keyboard() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
+
 def get_info_keyboard():
     """Клавиатура информационного меню (алиас для get_info_menu)"""
     return get_info_menu()
 
 
-def get_back_keyboard():
+def get_back_to_info_keyboard():
     """Кнопка Назад в информационное меню"""
     keyboard = [
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="info")]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="info_back")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

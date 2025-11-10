@@ -1,64 +1,67 @@
+"""
+Configuration Settings
+Все настройки приложения через переменные окружения
+"""
+
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import Optional
 
 
 class Settings(BaseSettings):
-    # Database
-    DATABASE_URL: str
+    # PostgreSQL
+    POSTGRES_USER: str = "svetlobot_user"
+    POSTGRES_PASSWORD: str = "svetlobot_dev_pass_2024"
+    POSTGRES_DB: str = "svetlobot"
+    POSTGRES_HOST: str = "postgres"
+    POSTGRES_PORT: int = 5432
 
     # Redis
-    REDIS_URL: str
+    REDIS_HOST: str = "redis"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = "redis_dev_pass_2024"
+    REDIS_DB: int = 0
 
-    # Telegram
-    TELEGRAM_BOT_TOKEN: str
-    ADMIN_BOT_TOKEN: str
-    TELEGRAM_CHANNEL_ID: int
-    TELEGRAM_CHANNEL_USERNAME: str
-    ADMIN_USER_IDS: str
+    # Celery (используем Redis как broker и backend)
+    CELERY_BROKER_URL: str = "redis://:redis_dev_pass_2024@redis:6379/1"
+    CELERY_RESULT_BACKEND: str = "redis://:redis_dev_pass_2024@redis:6379/2"
 
-    # API
+    # API Settings
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
-    API_BASE_URL: str
-    ADMIN_API_TOKEN: str
 
-    # LiqPay
-    LIQPAY_PUBLIC_KEY: str
-    LIQPAY_PRIVATE_KEY: str
-    LIQPAY_CALLBACK_URL: str
+    # Security
+    ADMIN_API_TOKEN: str = "dev_admin_token_12345"
+    IOT_API_KEY: str = "dev_iot_key_12345"
 
-    # Prices
-    STANDARD_PRICE_1M: int = 50
-    STANDARD_PRICE_3M: int = 130
-    STANDARD_PRICE_6M: int = 230
-    PRO_PRICE_1M: int = 100
-    PRO_PRICE_3M: int = 260
-    PRO_PRICE_6M: int = 460
+    # Telegram Bot
+    TELEGRAM_BOT_TOKEN: Optional[str] = None
+    ADMIN_BOT_TOKEN: Optional[str] = None
+    TELEGRAM_CHANNEL_ID: Optional[str] = None
+    ADMIN_USER_ID: Optional[int] = None
 
-    # IoT
-    IOT_API_KEY: str
+    # Rate Limiting
+    RATE_LIMIT_PER_MINUTE: int = 60
+    TELEGRAM_RATE_LIMIT: int = 30  # messages per second
 
-    # Celery
-    CELERY_BROKER_URL: str
-    CELERY_RESULT_BACKEND: str
-
-    # Logging
-    LOG_LEVEL: str = "INFO"
-    LOG_RETENTION_DAYS: int = 10
-
-    # Other
+    # Notification Settings
+    NOTIFICATION_BATCH_SIZE: int = 1000  # пользователей в одном батче
+    NOTIFICATION_RETRY_ATTEMPTS: int = 3
+    NOTIFICATION_RETRY_DELAY: int = 60  # секунд
+    # Debug mode
     DEBUG: bool = False
-    ENVIRONMENT: str = "production"
-    TIMEZONE: str = "Europe/Kiev"
-    TEST_MODE: bool = False
+
+    # Database URLs
+    @property
+    def DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     @property
-    def admin_user_ids_list(self) -> List[int]:
-        return [int(x.strip()) for x in self.ADMIN_USER_IDS.split(",")]
+    def REDIS_URL(self) -> str:
+        return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     class Config:
         env_file = ".env"
-        case_sensitive = False
+        case_sensitive = True
 
 
 settings = Settings()

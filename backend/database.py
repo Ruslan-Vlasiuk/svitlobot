@@ -47,3 +47,39 @@ async def init_db():
 async def close_db():
     await engine.dispose()
     logger.info("✅ Database connections closed")
+# Синхронная сессия для Celery tasks
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from contextlib import contextmanager
+
+# Создаём синхронный engine для Celery
+sync_engine = create_engine(
+    settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://").replace("postgresql://", "postgresql://"),
+    echo=settings.DEBUG,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True
+)
+
+# Синхронная session factory для Celery
+SyncSessionLocal = sessionmaker(
+    bind=sync_engine,
+    class_=Session,
+    expire_on_commit=False,
+    autoflush=False
+)
+
+# Context manager для синхронных сессий в Celery
+@contextmanager
+def get_session():
+    """Синхронная сессия БД для Celery tasks"""
+    session = SyncSessionLocal()
+    try:
+        yield session
+        session.commit()
+    except Exception as e:
+        logger.error(f"Database error in Celery task: {e}")
+        session.rollback()
+        raise
+    finally:
+        session.close()
