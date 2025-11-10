@@ -56,33 +56,6 @@ class AddressResponse(BaseModel):
 # ENDPOINTS
 # ============================================
 
-@router.get("/{address_id}", response_model=AddressResponse)
-async def get_address_by_id(
-        address_id: int,
-        db: AsyncSession = Depends(get_db)
-):
-    """
-    Получить адрес по ID
-
-    Используется для получения информации о primary_address_id пользователя
-
-    Пример:
-    /api/addresses/2
-    """
-    result = await db.execute(
-        select(Address).where(Address.id == address_id)
-    )
-    address = result.scalar_one_or_none()
-
-    if not address:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Address with ID {address_id} not found"
-        )
-
-    return address
-
-
 @router.get("/search", response_model=List[AddressResponse])
 async def search_addresses(
         street: Optional[str] = Query(None, description="Название улицы (частичное совпадение)"),
@@ -382,3 +355,80 @@ async def get_address_stats(
         "total_streets": len(streets),
         "by_queue": by_queue
     }
+
+
+@router.get("/similar")
+async def get_similar_addresses(
+        street: str = Query(..., description="Название улицы для поиска похожих"),
+        house_number: Optional[str] = Query(None, description="Номер дома (опционально)"),
+        limit: int = Query(5, description="Максимум результатов"),
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Поиск похожих адресов по улице и дому
+
+    Используется когда точный адрес не найден - показать пользователю похожие варианты
+
+    Пример:
+    /api/addresses/similar?street=вул. Сингаївського&house_number=2-Ж&limit=5
+
+    Вернёт адреса с той же улицы + соседние дома
+    """
+    # Убрать префиксы для поиска
+    search_street = street.replace("вул. ", "").replace("вулиця ", "").replace("пр. ", "").replace("бул. ", "")
+
+    # Поиск адресов на той же улице
+    query = select(Address).where(
+        or_(
+            Address.street.ilike(f"%{search_street}%"),
+            Address.street.ilike(f"вул. {search_street}%"),
+            Address.street.ilike(f"вулиця {search_street}%"),
+            Address.street == street
+        )
+    ).order_by(Address.house_number).limit(limit)
+
+    result = await db.execute(query)
+    addresses = result.scalars().all()
+
+    return [
+        {
+            "id": addr.id,
+            "street": addr.street,
+            "house_number": addr.house_number,
+            "queue_id": addr.queue_id,
+            "full_address": f"{addr.street}, {addr.house_number}"
+        }
+        for addr in addresses
+    ]
+
+
+# ============================================
+# ВАЖНО: Роут с {address_id} должен быть ПОСЛЕДНИМ!
+# Иначе он перехватывает все запросы типа /similar, /search и т.д.
+# ============================================
+
+@router.get("/{address_id}", response_model=AddressResponse)
+async def get_address_by_id(
+        address_id: int,
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Получить адрес по ID
+
+    Используется для получения информации о primary_address_id пользователя
+
+    Пример:
+    /api/addresses/2
+    """
+    result = await db.execute(
+        select(Address).where(Address.id == address_id)
+    )
+    address = result.scalar_one_or_none()
+
+    if not address:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Address with ID {address_id} not found"
+        )
+
+    return address

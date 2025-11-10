@@ -37,7 +37,7 @@ def get_address_method_keyboard() -> ReplyKeyboardMarkup:
     """Выбор способа ввода адреса"""
     keyboard = [
         [KeyboardButton(text="✍️ Ввести вручну")],
-        [KeyboardButton(text="📍 Визначити місцезнаходження", request_location=True)],
+        [KeyboardButton(text="📍 Визначити місцезнаходження")],
         [KeyboardButton(text="🔢 Я знаю свою чергу")]
     ]
     return ReplyKeyboardMarkup(

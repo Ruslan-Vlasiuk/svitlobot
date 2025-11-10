@@ -8,7 +8,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.enums import ParseMode
 
 from config import settings
-from handlers import start, info, user_settings, report, admin_callbacks, crowdreport
+from handlers import start, info, user_settings, report, admin_callbacks, crowdreport, location
 
 # Налаштування логування
 logging.basicConfig(
@@ -36,7 +36,8 @@ async def main():
         dp = Dispatcher(storage=storage)
 
         # Реєстрація роутерів
-        dp.include_router(start.router)
+        dp.include_router(start.router)  # ПЕРВЫМ! Регистрация
+        dp.include_router(location.router)  # Обработка геолокации
         dp.include_router(info.router)
         dp.include_router(user_settings.router)
         dp.include_router(report.router)

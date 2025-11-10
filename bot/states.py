@@ -8,6 +8,10 @@ class RegistrationStates(StatesGroup):
     entering_street = State()  # Ввод улицы
     entering_house = State()  # Ввод номера дома
     choosing_queue = State()  # Ручной выбор черги (если адрес не найден)
+    confirming_location = State()  # Підтвердження адреси з геолокації (НОВОЕ!)
+    selecting_from_similar = State()  # ← ДОБАВЬ ЭТУ СТРОКУ
+
+
 
 
 class SettingsStates(StatesGroup):

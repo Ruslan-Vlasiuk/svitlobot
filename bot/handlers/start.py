@@ -1,10 +1,9 @@
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.types import ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from utils.admin_notifier import notify_admin_new_address
-
 
 import logging
 
@@ -124,6 +123,32 @@ async def check_subscription(callback: CallbackQuery, state: FSMContext):
             show_alert=True
         )
 
+
+@router.message(RegistrationStates.choosing_address_method, F.text == "📍 Визначити місцезнаходження")
+async def show_location_instruction(message: Message, state: FSMContext):
+    """Показать инструкцию как отправить геолокацию"""
+    logger.info(f"🔵 User {message.from_user.id} pressed location button")
+    await message.answer(
+        "📍 <b>Як надіслати геолокацію:</b>\n\n"
+        "1️⃣ Натисніть на кнопку <b>📎</b> (скріпка) внизу\n"
+        "2️⃣ Оберіть <b>📍 Місце</b>\n"
+        "3️⃣ Надішліть вашу поточну геопозицію\n\n"
+        "⏳ Очікую геолокацію...",
+        parse_mode="HTML",
+        reply_markup=get_cancel_keyboard()
+    )
+    logger.info(f"✅ Instruction sent to {message.from_user.id}")
+
+@router.message(RegistrationStates.choosing_address_method, F.text == "❌ Скасувати")
+async def cancel_address_input(message: Message, state: FSMContext):
+    """Отмена ввода адреса"""
+    logger.info(f"❌ User {message.from_user.id} cancelled address input")
+    await state.clear()
+    await message.answer(
+        "❌ Реєстрація скасована.\n"
+        "Натисніть /start щоб почати знову.",
+        reply_markup=ReplyKeyboardRemove()
+    )
 
 @router.message(RegistrationStates.choosing_address_method, F.text == "✍️ Ввести вручну")
 async def address_manual_input(message: Message, state: FSMContext):
@@ -397,3 +422,4 @@ async def cancel_registration_callback(callback: CallbackQuery, state: FSMContex
 
     # Подтверждаем callback
     await callback.answer()
+

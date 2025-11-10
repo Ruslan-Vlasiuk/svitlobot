@@ -4,6 +4,9 @@ from aiogram.fsm.context import FSMContext
 import logging
 
 from api_client import api_client
+from keyboards.reply import get_main_keyboard
+from keyboards.inline import get_info_keyboard
+from states import SettingsStates
 
 logger = logging.getLogger(__name__)
 router = Router()
