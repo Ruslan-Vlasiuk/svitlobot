@@ -178,6 +178,41 @@ async def create_address(
     return new_address
 
 
+@router.patch("/{address_id}", response_model=AddressResponse)
+async def update_address(
+        address_id: int,
+        added_by: Optional[str] = None,
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Обновить адрес (частичное обновление)
+
+    Используется админом для подтверждения адреса
+
+    Пример:
+    PATCH /api/addresses/33
+    Body: {"added_by": "admin"}
+    """
+    result = await db.execute(
+        select(Address).where(Address.id == address_id)
+    )
+    address = result.scalar_one_or_none()
+
+    if not address:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Address with ID {address_id} not found"
+        )
+
+    # Обновить added_by
+    if added_by is not None:
+        address.added_by = added_by
+
+    await db.commit()
+    await db.refresh(address)
+
+    return address
+
 @router.get("/streets")
 async def get_streets(
         prefix: Optional[str] = Query(None, description="Начало названия улицы"),

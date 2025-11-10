@@ -164,11 +164,12 @@ async def process_location(message: Message, state: FSMContext):
                 )
             ])
 
-            # Відправити повідомлення з вибором
+            # Відправити повідомлення з вибором (ПОКАЗУЄМО ВУЛИЦЮ!)
             await message.answer(
                 f"📍 <b>Геолокацію визначено!</b>\n\n"
-                f"Оберіть вашу адресу зі списку:\n"
-                f"{'(✅ = рекомендована адреса)' if exact_address else ''}",
+                f"🏠 Вулиця: <b>{street}</b>\n\n"
+                f"Оберіть номер будинку:\n"
+                f"{'✅ = рекомендований' if exact_address else ''}",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
             )
@@ -277,6 +278,9 @@ async def switch_to_manual_entry(callback: CallbackQuery, state: FSMContext):
 async def switch_to_queue_selection(callback: CallbackQuery, state: FSMContext):
     """
     Перехід до ручного вибору черги
+
+    ВАЖЛИВО: Тут НЕ відправляємо уведомлення админу!
+    Уведомлення буде відправлено пізніше з start.py після вибору черги.
     """
     logger.info(f"🔄 User {callback.from_user.id} switched to manual queue selection")
 
@@ -294,7 +298,7 @@ async def switch_to_queue_selection(callback: CallbackQuery, state: FSMContext):
         reply_markup=get_queue_selection()
     )
 
-    # Зберегти дані для створення адреси
+    # Зберегти дані для створення адреси та відправки уведомлення
     await state.update_data(street=street, house=house)
     await state.set_state(RegistrationStates.choosing_queue)
     await callback.answer()

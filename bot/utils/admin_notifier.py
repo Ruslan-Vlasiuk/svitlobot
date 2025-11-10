@@ -24,7 +24,8 @@ async def notify_admin_new_address(
         first_name: str,
         street: str,
         house: str,
-        queue_id: int
+        queue_id: int,
+        address_id: Optional[int] = None
 ) -> None:
     """
     Надіслати уведомлення адмінам про новий адрес від користувача.
@@ -37,6 +38,7 @@ async def notify_admin_new_address(
         street: Назва вулиці
         house: Номер будинку
         queue_id: ID черги світла
+        address_id: ID созданного адреса в БД (опционально)
     """
 
     # Формуємо username для показу
@@ -52,18 +54,19 @@ async def notify_admin_new_address(
         f"Додати цю адресу до бази?"
     )
 
-    # Створюємо клавіатуру з кнопками
+    # Створюємо клавіатуру з КОРОТКИМИ callback_data
+    # ВАЖЛИВО: callback_data максимум 64 байта!
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(
                 text="✅ Підтвердити",
-                callback_data=f"admin_approve_address_{user_id}_{queue_id}_{street}_{house}"
+                callback_data=f"appr_{user_id}_{queue_id}"
             )
         ],
         [
             InlineKeyboardButton(
                 text="❌ Відхилити",
-                callback_data=f"admin_reject_address_{user_id}"
+                callback_data=f"rejct_{user_id}"
             )
         ]
     ])

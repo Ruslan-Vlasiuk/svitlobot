@@ -139,16 +139,21 @@ async def show_location_instruction(message: Message, state: FSMContext):
     )
     logger.info(f"✅ Instruction sent to {message.from_user.id}")
 
+
 @router.message(RegistrationStates.choosing_address_method, F.text == "❌ Скасувати")
 async def cancel_address_input(message: Message, state: FSMContext):
     """Отмена ввода адреса"""
     logger.info(f"❌ User {message.from_user.id} cancelled address input")
-    await state.clear()
+
     await message.answer(
-        "❌ Реєстрація скасована.\n"
-        "Натисніть /start щоб почати знову.",
-        reply_markup=ReplyKeyboardRemove()
+        "❌ Скасовано\n\n"
+        "Оберіть спосіб визначення вашої адреси:",
+        reply_markup=get_address_method_keyboard()
     )
+
+    # Остаемся в том же state - выбор способа ввода адреса
+    await state.set_state(RegistrationStates.choosing_address_method)
+
 
 @router.message(RegistrationStates.choosing_address_method, F.text == "✍️ Ввести вручну")
 async def address_manual_input(message: Message, state: FSMContext):
@@ -170,7 +175,6 @@ async def address_queue_input(message: Message, state: FSMContext):
     )
     await state.set_state(RegistrationStates.choosing_queue)
 
-
 @router.message(RegistrationStates.entering_street)
 async def process_street_input(message: Message, state: FSMContext):
     """Обработка ввода улицы с нечётким поиском"""
@@ -178,7 +182,7 @@ async def process_street_input(message: Message, state: FSMContext):
     if message.text == "❌ Скасувати":
         await message.answer(
             "❌ Введення скасовано.\n\n"
-            "🏠 Оберіть інший спосіб визначення вашої адреси:",
+            "Оберіть спосіб визначення вашої адреси:",
             reply_markup=get_address_method_keyboard()
         )
         await state.set_state(RegistrationStates.choosing_address_method)
@@ -226,7 +230,7 @@ async def process_house_input(message: Message, state: FSMContext):
     if message.text == "❌ Скасувати":
         await message.answer(
             "❌ Введення скасовано.\n\n"
-            "🏠 Оберіть інший спосіб визначення вашої адреси:",
+            "Оберіть спосіб визначення вашої адреси:",  # ← убрать "🏠"
             reply_markup=get_address_method_keyboard()
         )
         await state.set_state(RegistrationStates.choosing_address_method)

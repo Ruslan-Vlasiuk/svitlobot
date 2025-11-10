@@ -35,6 +35,11 @@ async def main():
         # Створити dispatcher
         dp = Dispatcher(storage=storage)
 
+        # ✅ Ініціалізація API клієнта для admin callbacks
+        from api_client import api_client
+        admin_callbacks.set_api_client(api_client)
+        logger.info("✅ API client initialized for admin callbacks")
+
         # Реєстрація роутерів
         dp.include_router(start.router)  # ПЕРВЫМ! Регистрация
         dp.include_router(location.router)  # Обработка геолокации

@@ -31,10 +31,13 @@ def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_TELEGRAM_IDS
 
 
-@router.callback_query(F.data.startswith("admin_approve_address_"))
+@router.callback_query(F.data.startswith("appr_"))
 async def approve_address(callback: CallbackQuery):
     """
     Підтвердити новий адрес і додати його до бази даних.
+
+    Callback data format: appr_{user_id}_{queue_id}
+    ВАЖЛИВО: Адрес вже створений в start.py, тут тільки підтверджуємо!
     """
     # Перевірка прав адміністратора
     if not is_admin(callback.from_user.id):
@@ -42,74 +45,79 @@ async def approve_address(callback: CallbackQuery):
         return
 
     try:
-        # Парсинг callback_data
+        # Парсинг callback_data: appr_{user_id}_{queue_id}
         parts = callback.data.split("_")
-        user_id = int(parts[3])
-        queue_id = int(parts[4])
-        street = "_".join(parts[5:-1])
-        house = parts[-1]
+        user_id = int(parts[1])
+        queue_id = int(parts[2])
 
         logger.info(
-            f"Admin {callback.from_user.id} approving address: "
-            f"user={user_id}, queue={queue_id}, street={street}, house={house}"
+            f"Admin {callback.from_user.id} approving address for "
+            f"user={user_id}, queue={queue_id}"
         )
 
-        # Створюємо адрес в базі даних
         if api_client is None:
             await callback.answer("❌ API client not initialized", show_alert=True)
             return
 
-        address_data = {
-            "street": street,
-            "house_number": house,
-            "queue_id": queue_id,
-            "verified": True
-        }
+        # Получаем информацию о пользователе
+        user = await api_client.get(f"/api/users/{user_id}")
 
-        # Створюємо адрес
-        new_address = await api_client.post("/api/addresses/", address_data)
-
-        if not new_address or "id" not in new_address:
-            await callback.answer("❌ Помилка при створенні адреси", show_alert=True)
+        if not user or not user.get("primary_address_id"):
+            await callback.answer("❌ Адрес не знайдено у користувача", show_alert=True)
             return
 
-        address_id = new_address["id"]
+        address_id = user["primary_address_id"]
 
-        # Оновлюємо primary_address_id користувача
+        # Получаем информацию об адресе
+        address = await api_client.get(f"/api/addresses/{address_id}")
+
+        if not address:
+            await callback.answer("❌ Адрес не знайдено в БД", show_alert=True)
+            return
+
         await api_client.patch(
-            f"/api/users/{user_id}",
-            {"primary_address_id": address_id}
+            f"/api/addresses/{address_id}",
+            {"added_by": "admin"}
         )
 
         # Відповідь адміну
         success_message = (
-            f"✅ <b>АДРЕСУ ПІДТВЕРДЖЕНО</b>\n\n"
-            f"🏠 {street}, {house}\n"
-            f"🔢 Черга: {queue_id}\n"
+            f"\n\n✅ <b>АДРЕСУ ПІДТВЕРДЖЕНО</b>\n"
+            f"🏠 {address['street']}, {address['house_number']}\n"
+            f"🔢 Черга: {address['queue_id']}\n"
             f"👤 Користувач ID: {user_id}\n"
-            f"🆔 Address ID: {address_id}"
+            f"🆔 Address ID: {address_id}\n"
+            f"👨‍💼 Адмін: @{callback.from_user.username or callback.from_user.first_name}"
         )
 
         await callback.message.edit_text(
-            callback.message.text + "\n\n" + success_message,
+            callback.message.text + success_message,
             parse_mode="HTML"
         )
 
         await callback.answer("✅ Адресу підтверджено!", show_alert=False)
 
-        logger.info(f"✅ Address approved: {address_id}")
+        logger.info(f"✅ Address {address_id} approved by admin {callback.from_user.id}")
+
+        # TODO: Відправити користувачу повідомлення про підтвердження
+        # await callback.bot.send_message(
+        #     user_id,
+        #     f"✅ Ваш адрес підтверджено адміністратором!\n"
+        #     f"📍 {address['street']}, {address['house_number']}\n"
+        #     f"🔢 Черга: {address['queue_id']}"
+        # )
 
     except Exception as e:
         logger.error(f"❌ Error approving address: {e}", exc_info=True)
         await callback.answer("❌ Помилка при підтвердженні", show_alert=True)
 
 
-@router.callback_query(F.data.startswith("admin_reject_address_"))
+@router.callback_query(F.data.startswith("rejct_"))
 async def reject_address(callback: CallbackQuery):
     """
     Відхилити новий адрес.
 
-    Callback data format: admin_reject_address_{user_id}
+    Callback data format: rejct_{user_id}
     """
 
     # Перевірка прав адміністратора
@@ -118,16 +126,38 @@ async def reject_address(callback: CallbackQuery):
         return
 
     try:
-        # Парсинг callback_data
+        # Парсинг callback_data: rejct_{user_id}
         parts = callback.data.split("_")
-        user_id = int(parts[3])
+        user_id = int(parts[1])
 
         logger.info(f"Admin {callback.from_user.id} rejecting address for user {user_id}")
+
+        if api_client is None:
+            await callback.answer("❌ API client not initialized", show_alert=True)
+            return
+
+        # Получаем информацию о пользователе
+        user = await api_client.get(f"/api/users/{user_id}")
+
+        if user and user.get("primary_address_id"):
+            address_id = user["primary_address_id"]
+
+            # Помечаем адрес как неподтверждённый
+            await api_client.patch(
+                f"/api/addresses/{address_id}",
+                {"verified": False}
+            )
+
+            # Убираем адрес у пользователя
+            await api_client.patch(
+                f"/api/users/{user_id}",
+                {"primary_address_id": None}
+            )
 
         # Оновлюємо повідомлення
         reject_message = (
             f"\n\n❌ <b>АДРЕСУ ВІДХИЛЕНО</b>\n"
-            f"Адміністратор: @{callback.from_user.username or callback.from_user.first_name}"
+            f"👨‍💼 Адмін: @{callback.from_user.username or callback.from_user.first_name}"
         )
 
         await callback.message.edit_text(
